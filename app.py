@@ -29,10 +29,24 @@ run_status = {
 }
 
 def load_config():
+    env_comp = os.getenv("COMPETITORS", "")
+    config = {
+        "my_profile":    os.getenv("MY_PROFILE", ""),
+        "niche":         os.getenv("MY_NICHE", ""),
+        "location":      os.getenv("MY_LOCATION", ""),
+        "competitors":   [c.strip() for c in env_comp.split(",") if c.strip()] if env_comp else [],
+        "apify_token":   os.getenv("APIFY_TOKEN", ""),
+        "anthropic_key": os.getenv("ANTHROPIC_API_KEY", ""),
+    }
     if CONFIG_FILE.exists():
-        return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-    return {"my_profile": "", "niche": "", "location": "",
-            "competitors": [], "apify_token": "", "anthropic_key": ""}
+        try:
+            saved = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+            for k, v in saved.items():
+                if v or v == []:
+                    config[k] = v
+        except:
+            pass
+    return config
 
 def save_config(config):
     CONFIG_FILE.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
