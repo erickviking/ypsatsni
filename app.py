@@ -52,45 +52,39 @@ def save_config(config):
     CONFIG_FILE.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def scrape_profile(username, apify_token, max_posts=30):
+    """Scrape Instagram profile + posts using apify/instagram-profile-scraper"""
+    client = ApifyClient(apify_token)
+    uname = username.lstrip("@")
+
+    # Step 1: Get profile data
     try:
-        client = ApifyClient(apify_token)
-        # Use snscrape/instagram-scraper which reliably returns posts
-        run_input = {
-            "usernames": [username.lstrip("@")],
-            "resultsLimit": max_posts,
-            "resultsType": "posts",
-            "scrapePostsUntilDate": "",
-            "proxy": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]},
-        }
-        run = client.actor("apify/instagram-scraper").call(run_input=run_input)
-        items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
-        if not items:
-            return None
-        # instagram-scraper returns posts as items, build profile-like structure
-        first = items[0]
-        # If it looks like a profile object, return as-is
-        if "followersCount" in first or "biography" in first:
-            return first
-        # Otherwise build profile from post data
-        return {
-            "username": username,
-            "fullName": first.get("ownerFullName", username),
-            "biography": "",
-            "followersCount": first.get("followersCount", 0),
-            "followingCount": 0,
-            "postsCount": len(items),
-            "posts": items,
-        }
+        profile_run = client.actor("apify/instagram-profile-scraper").call(run_input={
+            "usernames": [uname],
+        })
+        profile_items = list(client.dataset(profile_run["defaultDatasetId"]).iterate_items())
     except Exception as e:
-        # Fallback to profile scraper
-        try:
-            client2 = ApifyClient(apify_token)
-            run_input2 = {"usernames": [username.lstrip("@")], "resultsLimit": max_posts}
-            run2 = client2.actor("apify/instagram-profile-scraper").call(run_input=run_input2)
-            items2 = list(client2.dataset(run2["defaultDatasetId"]).iterate_items())
-            return items2[0] if items2 else None
-        except Exception as e2:
-            raise Exception(f"Erro Apify para @{username}: {str(e2)}")
+        raise Exception(f"Erro Apify (perfil) para @{uname}: {str(e)}")
+
+    if not profile_items:
+        raise Exception(f"Perfil @{uname} não encontrado ou privado")
+
+    profile = profile_items[0]
+
+    # Step 2: Get posts separately
+    try:
+        posts_run = client.actor("apify/instagram-scraper").call(run_input={
+            "directUrls": [f"https://www.instagram.com/{uname}/"],
+            "resultsType": "posts",
+            "resultsLimit": max_posts,
+            "proxy": {"useApifyProxy": True},
+        })
+        posts = list(client.dataset(posts_run["defaultDatasetId"]).iterate_items())
+        profile["posts"] = posts
+    except Exception:
+        # Posts failed but profile OK — continue with empty posts
+        profile["posts"] = profile.get("latestPosts", [])
+
+    return profile
 
 def detect_niche(profile_data, key):
     ai = anthropic.Anthropic(api_key=key)
