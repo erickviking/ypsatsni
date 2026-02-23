@@ -1,6 +1,6 @@
 """
-AICM Radar SP — Instagram Intelligence Agent
-Flask web application for Railway deployment
+Instagram Intelligence Agent
+Flask web application — Universal, works for any niche
 """
 
 import os
@@ -14,7 +14,7 @@ import anthropic
 from apify_client import ApifyClient
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "radar-sp-secret-2026")
+app.secret_key = os.getenv("SECRET_KEY", "radar-ig-secret-2026")
 
 DATA_DIR = Path("data")
 REPORTS_DIR = Path("reports")
@@ -28,17 +28,15 @@ run_status = {
     "last_run": None, "error": None,
 }
 
-# ─── CONFIG ───────────────────────────────────────────────────────────────────
 def load_config():
     if CONFIG_FILE.exists():
         return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-    return {"my_profile": "", "specialty": "", "location": "São Paulo",
+    return {"my_profile": "", "niche": "", "location": "",
             "competitors": [], "apify_token": "", "anthropic_key": ""}
 
 def save_config(config):
     CONFIG_FILE.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
 
-# ─── SCRAPING ─────────────────────────────────────────────────────────────────
 def scrape_profile(username, apify_token, max_posts=30):
     try:
         client = ApifyClient(apify_token)
@@ -47,9 +45,20 @@ def scrape_profile(username, apify_token, max_posts=30):
         items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
         return items[0] if items else None
     except Exception as e:
-        return None
+        raise Exception(f"Erro Apify para @{username}: {str(e)}")
 
-# ─── AI ANALYSIS ──────────────────────────────────────────────────────────────
+def detect_niche(profile_data, key):
+    ai = anthropic.Anthropic(api_key=key)
+    posts = [p.get("caption", "")[:200] for p in profile_data.get("posts", [])[:8]]
+    prompt = f"""Analise este perfil do Instagram e identifique em UMA frase curta o nicho/área de atuação.
+Bio: {profile_data.get('biography', '')}
+Nome: {profile_data.get('fullName', '')}
+Posts recentes: {json.dumps(posts, ensure_ascii=False)}
+Responda APENAS com o nicho em uma frase curta. Ex: "Coach de emagrecimento", "Advogado tributarista", "Personal trainer", "Chef de cozinha vegana". Seja específico."""
+    msg = ai.messages.create(model="claude-opus-4-6", max_tokens=50,
+                              messages=[{"role": "user", "content": prompt}])
+    return msg.content[0].text.strip()
+
 def build_posts_summary(profile_data):
     posts = []
     for post in profile_data.get("posts", [])[:25]:
@@ -63,26 +72,27 @@ def build_posts_summary(profile_data):
         })
     return posts
 
-def analyze_own_profile(profile_data, config, key):
+def analyze_own_profile(profile_data, config, key, detected_niche):
     ai = anthropic.Anthropic(api_key=key)
     posts = build_posts_summary(profile_data)
-    prompt = f"""Você é especialista em marketing médico digital e personal branding para médicos brasileiros.
-Analise MEU PRÓPRIO perfil do Instagram com diagnóstico honesto e acionável.
+    niche = detected_niche or config.get("niche", "criador de conteúdo")
+    loc = f" em {config['location']}" if config.get("location") else ""
+    prompt = f"""Você é especialista em marketing digital e estratégia de conteúdo para Instagram.
+Analise MEU PRÓPRIO perfil com diagnóstico honesto e acionável.
+Nicho identificado: {niche}{loc}
 
 PERFIL: {profile_data.get('fullName')} | @{profile_data.get('username')}
 Bio: {profile_data.get('biography')}
 Seguidores: {profile_data.get('followersCount',0):,} | Posts: {profile_data.get('postsCount',0)}
-Especialidade: {config.get('specialty','Médico')} | Cidade: {config.get('location','SP')}
 
 ÚLTIMOS POSTS:
 {json.dumps(posts, ensure_ascii=False, indent=2)}
 
-Forneça:
 ### 1. DIAGNÓSTICO GERAL
-Nota 0-10 com justificativa. Clareza de posicionamento. Eficácia da bio.
+Nota 0-10 com justificativa. Clareza do posicionamento no nicho "{niche}". Eficácia da bio.
 
 ### 2. ANÁLISE POST A POST
-Para cada post: tema, tipo, performance, o que funcionou, o que melhorar.
+Para cada post: tema, tipo, performance (likes+comentários), o que funcionou, o que melhorar.
 
 ### 3. PADRÕES IDENTIFICADOS
 Temas que mais engajam. Tipos de post com melhor performance. Frequência. Hashtags.
@@ -91,122 +101,122 @@ Temas que mais engajam. Tipos de post com melhor performance. Frequência. Hasht
 O que fazer mais.
 
 ### 5. PONTOS DE MELHORIA
-O que mudar, em ordem de prioridade.
+O que mudar, em ordem de prioridade e impacto.
 
 ### 6. TOP 5 AÇÕES — PRÓXIMOS 30 DIAS
-Ações concretas e implementáveis.
+Ações concretas e implementáveis para crescer no nicho {niche}.
 
 Responda em português, direto e profissional."""
     msg = ai.messages.create(model="claude-opus-4-6", max_tokens=3000,
                               messages=[{"role": "user", "content": prompt}])
     return msg.content[0].text
 
-def analyze_competitor(profile_data, config, key):
+def analyze_competitor(profile_data, config, key, my_niche, comp_niche):
     ai = anthropic.Anthropic(api_key=key)
     posts = build_posts_summary(profile_data)
-    prompt = f"""Você é especialista em marketing médico digital e inteligência competitiva.
+    loc = f" em {config['location']}" if config.get("location") else ""
+    prompt = f"""Você é especialista em inteligência competitiva e estratégia de conteúdo para Instagram.
 Analise este CONCORRENTE e gere relatório de inteligência competitiva.
+Meu nicho: {my_niche}{loc}
+Nicho do concorrente: {comp_niche}
 
 PERFIL: {profile_data.get('fullName')} | @{profile_data.get('username')}
 Bio: {profile_data.get('biography')}
 Seguidores: {profile_data.get('followersCount',0):,} | Posts: {profile_data.get('postsCount',0)}
-Minha especialidade: {config.get('specialty','Médico')} | Cidade: {config.get('location','SP')}
 
 POSTS:
 {json.dumps(posts, ensure_ascii=False, indent=2)}
 
-Forneça:
 ### 1. PERFIL ESTRATÉGICO
-Posicionamento, nicho, proposta de valor, público-alvo. Nível de ameaça 1-10.
+Posicionamento e nicho. Proposta de valor. Público-alvo. Nível de ameaça 1-10 com justificativa.
 
 ### 2. ANÁLISE DOS POSTS
-Tema, tipo, performance, por que funcionou ou não.
+Para cada post relevante: tema, tipo, performance, por que funcionou ou não.
 
 ### 3. ESTRATÉGIA DE CONTEÚDO
-Temas mais engajados, mix de conteúdo, tom, frequência, hashtags.
+Temas mais engajados. Mix de conteúdo. Tom. Frequência. Hashtags.
 
-### 4. PONTOS FORTES DO CONCORRENTE
-O que aprender.
+### 4. PONTOS FORTES
+O que ele faz bem — o que aprender.
 
 ### 5. LACUNAS E OPORTUNIDADES
 O que ele não faz — suas oportunidades.
 
 ### 6. INSIGHTS ACIONÁVEIS
-O que implementar para se diferenciar.
+O que implementar para se diferenciar (sem copiar).
 
 Responda em português, direto e analítico."""
     msg = ai.messages.create(model="claude-opus-4-6", max_tokens=3000,
                               messages=[{"role": "user", "content": prompt}])
     return msg.content[0].text
 
-def generate_content_plan(all_analyses, config, key):
+def generate_content_plan(all_analyses, config, key, my_niche):
     ai = anthropic.Anthropic(api_key=key)
-    summaries = [{"perfil": a["username"], "seguidores": a["followers"],
-                  "analise": a["analysis"][:800]}
+    summaries = [{"perfil": a["username"], "nicho": a.get("detected_niche",""),
+                  "seguidores": a["followers"], "analise": a["analysis"][:800]}
                  for a in all_analyses if a["type"] == "competitor"]
-    prompt = f"""Você é estrategista de conteúdo especializado em marketing médico digital no Brasil.
-Crie PLANO DE CONTEÚDO estratégico baseado nas análises dos concorrentes.
+    loc = f" em {config['location']}" if config.get("location") else ""
+    prompt = f"""Você é estrategista de conteúdo especializado em Instagram e growth digital.
+Crie um PLANO DE CONTEÚDO estratégico baseado nas análises dos concorrentes.
 
-MEU PERFIL: @{config.get('my_profile','')} | {config.get('specialty','Médico')} | {config.get('location','SP')}
+MEU PERFIL: @{config.get('my_profile','')} | Nicho: {my_niche}{loc}
 
 CONCORRENTES ANALISADOS:
 {json.dumps(summaries, ensure_ascii=False, indent=2)}
 
-Forneça:
-### 1. TOP 10 TEMAS QUE MAIS ENGAJAM NO MERCADO
-Com justificativa baseada nos dados.
+### 1. TOP 10 TEMAS QUE MAIS ENGAJAM NESTE NICHO
+Com justificativa baseada nos dados reais dos concorrentes.
 
 ### 2. PLANO — PRÓXIMAS 4 SEMANAS
-Por semana, 3 posts com: tema, formato (Reels/Carrossel/Foto/Stories), headline, pontos principais, hashtags, por que tem potencial.
+Por semana, 3 posts com: tema específico, formato (Reels/Carrossel/Foto/Stories), gancho/headline, pontos principais, hashtags sugeridas, por que tem potencial.
 
 ### 3. FORMATOS QUE MAIS PERFORMAM
-Ranking com justificativa.
+Ranking com justificativa baseada nos dados.
 
 ### 4. ESTRATÉGIA DE DIFERENCIAÇÃO
-Como se destacar dos concorrentes.
+Como se destacar com conteúdo único e autêntico.
 
 ### 5. CALENDÁRIO SUGERIDO
-Frequência, melhores dias e horários.
+Frequência ideal, melhores dias e horários.
 
-Responda em português, específico e prático."""
+Responda em português, específico e implementável."""
     msg = ai.messages.create(model="claude-opus-4-6", max_tokens=3500,
                               messages=[{"role": "user", "content": prompt}])
     return msg.content[0].text
 
-def generate_executive_summary(all_analyses, config, key):
+def generate_executive_summary(all_analyses, config, key, my_niche):
     ai = anthropic.Anthropic(api_key=key)
     summaries = [{"tipo": a["type"], "perfil": a["username"],
-                  "seguidores": a["followers"], "resumo": a["analysis"][:600]}
+                  "nicho": a.get("detected_niche",""), "seguidores": a["followers"],
+                  "resumo": a["analysis"][:600]}
                  for a in all_analyses]
-    prompt = f"""Crie RELATÓRIO EXECUTIVO consolidando toda a inteligência coletada.
-
-{len(all_analyses)} perfis analisados | @{config.get('my_profile')} | {config.get('specialty')} | {datetime.now().strftime('%d/%m/%Y')}
+    loc = f" em {config['location']}" if config.get("location") else ""
+    prompt = f"""Crie RELATÓRIO EXECUTIVO consolidando toda a inteligência competitiva coletada.
+{len(all_analyses)} perfis | @{config.get('my_profile')} | Nicho: {my_niche}{loc} | {datetime.now().strftime('%d/%m/%Y')}
 
 ANÁLISES:
 {json.dumps(summaries, ensure_ascii=False, indent=2)}
 
-Forneça (máx 700 palavras):
 ### PANORAMA COMPETITIVO
-Situação atual do mercado no Instagram nesta especialidade em SP.
+Situação atual do mercado no Instagram para o nicho {my_niche}{loc}.
 
 ### POSIÇÃO COMPETITIVA ATUAL
 Onde você está em relação aos concorrentes.
 
 ### 3 PRIORIDADES IMEDIATAS
-As 3 ações mais importantes para fazer agora.
+As 3 ações mais importantes agora.
 
 ### OPORTUNIDADES DE MERCADO
 O que nenhum concorrente está fazendo bem.
 
 ### PLANO 90 DIAS
-Timeline com marcos claros.
+3 fases de 30 dias com marcos claros.
 
-Seja direto, executivo, sem rodeios."""
+Seja direto, executivo, máx 700 palavras."""
     msg = ai.messages.create(model="claude-opus-4-6", max_tokens=2000,
                               messages=[{"role": "user", "content": prompt}])
     return msg.content[0].text
 
-# ─── BACKGROUND RUNNER ────────────────────────────────────────────────────────
 def run_analysis_thread(config):
     global run_status
     run_status.update({"running": True, "logs": [], "finished": False,
@@ -216,16 +226,20 @@ def run_analysis_thread(config):
     anthropic_key = config.get("anthropic_key") or os.getenv("ANTHROPIC_API_KEY", "")
 
     def log(msg, level="info"):
-        run_status["logs"].append({
-            "msg": msg, "level": level,
-            "time": datetime.now().strftime("%H:%M:%S")
-        })
+        run_status["logs"].append({"msg": msg, "level": level,
+                                   "time": datetime.now().strftime("%H:%M:%S")})
 
     try:
+        if not apify_token:
+            raise Exception("Apify Token não configurado. Vá em Configurações.")
+        if not anthropic_key:
+            raise Exception("Anthropic API Key não configurada. Vá em Configurações.")
+
         profiles = [{"username": config["my_profile"], "type": "own"}]
         profiles += [{"username": c, "type": "competitor"} for c in config.get("competitors", [])]
         run_status["total"] = len(profiles)
         all_analyses = []
+        my_niche = config.get("niche", "")
 
         for i, p in enumerate(profiles):
             username = p["username"].lstrip("@")
@@ -233,43 +247,75 @@ def run_analysis_thread(config):
             run_status.update({"current_profile": username, "progress": i})
             log(f"[{label}] Coletando @{username}...", "info")
 
-            data = scrape_profile(username, apify_token)
+            try:
+                data = scrape_profile(username, apify_token)
+            except Exception as e:
+                log(f"⚠️  @{username} — {str(e)}", "warn")
+                continue
+
             if not data:
-                log(f"⚠️  @{username} — sem dados", "warn")
+                log(f"⚠️  @{username} — perfil não encontrado ou privado", "warn")
                 continue
 
             followers = data.get("followersCount", 0)
-            log(f"✅ @{username} — {followers:,} seguidores · {len(data.get('posts',[]))} posts", "success")
-            log(f"🤖 Analisando @{username} com IA...", "info")
+            posts_count = len(data.get("posts", []))
+            log(f"✅ @{username} — {followers:,} seguidores · {posts_count} posts", "success")
 
-            analysis = analyze_own_profile(data, config, anthropic_key) if p["type"] == "own" \
-                       else analyze_competitor(data, config, anthropic_key)
+            log(f"🔍 Detectando nicho de @{username}...", "info")
+            try:
+                detected_niche = detect_niche(data, anthropic_key)
+                log(f"🏷️  Nicho: {detected_niche}", "info")
+            except:
+                detected_niche = config.get("niche", "criador de conteúdo")
+
+            if p["type"] == "own" and not my_niche:
+                my_niche = detected_niche
+
+            log(f"🤖 Analisando @{username} com IA...", "info")
+            try:
+                if p["type"] == "own":
+                    analysis = analyze_own_profile(data, config, anthropic_key, detected_niche)
+                else:
+                    analysis = analyze_competitor(data, config, anthropic_key, my_niche, detected_niche)
+            except Exception as e:
+                log(f"⚠️  Erro na análise de @{username}: {str(e)}", "warn")
+                continue
 
             all_analyses.append({
                 "type": p["type"], "username": username,
                 "full_name": data.get("fullName", username),
-                "followers": followers,
-                "posts_analyzed": len(data.get("posts", [])),
-                "analysis": analysis,
+                "followers": followers, "posts_analyzed": posts_count,
+                "detected_niche": detected_niche, "analysis": analysis,
                 "collected_at": datetime.now().isoformat(),
             })
-            log(f"✅ Análise de @{username} concluída", "success")
+            log(f"✅ @{username} concluído!", "success")
             time.sleep(1)
 
-        content_plan = exec_summary = "Sem dados suficientes."
-        if all_analyses:
-            log("💡 Gerando plano de conteúdo...", "info")
-            content_plan = generate_content_plan(all_analyses, config, anthropic_key)
-            log("✅ Plano de conteúdo gerado", "success")
-            log("📋 Gerando relatório executivo...", "info")
-            exec_summary = generate_executive_summary(all_analyses, config, anthropic_key)
-            log("✅ Relatório executivo gerado", "success")
+        if not all_analyses:
+            raise Exception("Nenhum perfil analisado. Verifique os usernames e credenciais.")
+
+        log(f"💡 Gerando plano de conteúdo para '{my_niche}'...", "info")
+        try:
+            content_plan = generate_content_plan(all_analyses, config, anthropic_key, my_niche)
+            log("✅ Plano de conteúdo gerado!", "success")
+        except Exception as e:
+            content_plan = f"Erro: {str(e)}"
+            log(f"⚠️  {str(e)}", "warn")
+
+        log("📋 Gerando relatório executivo...", "info")
+        try:
+            exec_summary = generate_executive_summary(all_analyses, config, anthropic_key, my_niche)
+            log("✅ Relatório executivo gerado!", "success")
+        except Exception as e:
+            exec_summary = f"Erro: {str(e)}"
+            log(f"⚠️  {str(e)}", "warn")
 
         date_str = datetime.now().strftime("%Y%m%d_%H%M")
         report = {
             "id": date_str,
             "run_date": datetime.now().isoformat(),
             "run_date_br": datetime.now().strftime("%d/%m/%Y às %H:%M"),
+            "my_niche": my_niche,
             "config": {k: v for k, v in config.items() if "token" not in k and "key" not in k},
             "profiles_analyzed": len(all_analyses),
             "analyses": all_analyses,
@@ -281,14 +327,14 @@ def run_analysis_thread(config):
 
         run_status.update({"progress": run_status["total"], "last_run": date_str})
         log(f"🎉 Concluído! {len(all_analyses)} perfis analisados.", "success")
+        log("📊 Acesse a aba Relatórios para ver os resultados.", "success")
 
     except Exception as e:
         run_status["error"] = str(e)
-        log(f"❌ Erro: {e}", "error")
+        log(f"❌ Erro: {str(e)}", "error")
     finally:
         run_status.update({"running": False, "finished": True})
 
-# ─── ROUTES ───────────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
     return render_template("index.html", config=load_config(), reports=get_reports_list())
@@ -337,6 +383,7 @@ def get_reports_list():
             reports.append({
                 "id": d["id"], "run_date_br": d.get("run_date_br", d["id"]),
                 "profiles_analyzed": d.get("profiles_analyzed", 0),
+                "my_niche": d.get("my_niche", ""),
                 "my_profile": d.get("config", {}).get("my_profile", ""),
                 "competitors": d.get("config", {}).get("competitors", []),
             })
