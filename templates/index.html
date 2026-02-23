@@ -1410,6 +1410,9 @@ header {
           <div class="page-title">ÚLTIMO <em>RELATÓRIO</em></div>
           <div class="page-subtitle">análise mais recente gerada pelo agente</div>
         </div>
+        <button class="btn-pdf" id="btnPdf" onclick="downloadPdf()" aria-label="Exportar relatório em PDF" style="display:none">
+          <span aria-hidden="true">⬇</span> EXPORTAR PDF
+        </button>
       </div>
       <div id="reportsContainer" class="report-list"></div>
     </section>
@@ -1499,6 +1502,29 @@ header {
 
 <!-- Visually hidden utility class -->
 <style>
+.btn-pdf {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 20px;
+  background: transparent;
+  color: var(--amber);
+  border: 1px solid var(--amber);
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-pdf:hover {
+  background: var(--amber-dim);
+  box-shadow: var(--shadow-amber);
+}
+.btn-pdf:disabled {
+  opacity: 0.5; cursor: not-allowed;
+}
+
 .visually-hidden {
   position: absolute; width: 1px; height: 1px;
   padding: 0; margin: -1px; overflow: hidden;
@@ -1769,10 +1795,13 @@ async function loadLatestReport() {
 
 function renderLatestReport() {
   const container = document.getElementById('reportsContainer');
+  const pdfBtn = document.getElementById('btnPdf');
   if (!latestReport) {
     container.innerHTML = emptyState('◉', 'Nenhum relatório ainda', 'Execute uma análise no Dashboard para gerar relatórios detalhados.');
+    if (pdfBtn) pdfBtn.style.display = 'none';
     return;
   }
+  if (pdfBtn) pdfBtn.style.display = 'flex';
   const r = latestReport;
   let html = `<div style="font-family:var(--font-mono);font-size:10px;color:var(--t3);margin-bottom:16px;letter-spacing:0.08em;">
     ANÁLISE DE <strong style="color:var(--t2)">${r.run_date_br}</strong> · ${r.profiles_analyzed} PERFIS · ${(r.my_niche||'').toUpperCase()}
@@ -1951,6 +1980,30 @@ function switchTabByName(name) {
   const names = ['dashboard','reports','history','config'];
   const idx = names.indexOf(name);
   if (idx >= 0) switchTab(name, tabs[idx]);
+}
+
+// ─── PDF EXPORT ─────────────────────────────────────────────────────────────
+async function downloadPdf() {
+  if (!latestReport) return;
+  const btn = document.getElementById('btnPdf');
+  btn.disabled = true;
+  btn.innerHTML = '<span>⏳</span> GERANDO PDF...';
+  try {
+    const res = await fetch(`/api/report/${latestReport.id}/pdf`);
+    if (!res.ok) throw new Error('Erro ao gerar PDF');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `IG_Intelligence_${latestReport.id}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    showAlert('Erro ao gerar PDF: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>⬇</span> EXPORTAR PDF';
+  }
 }
 
 // ─── BOOT ────────────────────────────────────────────────────────────────────

@@ -405,6 +405,46 @@ def test_apify():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
+@app.route("/api/debug-scrape/<username>")
+def debug_scrape(username):
+    config = load_config()
+    token = config.get("apify_token") or os.getenv("APIFY_TOKEN", "")
+    if not token:
+        return jsonify({"ok": False, "error": "No Apify token"})
+    try:
+        client = ApifyClient(token)
+        # Quick profile scrape
+        run = client.actor("apify/instagram-profile-scraper").call(run_input={
+            "usernames": [username.lstrip("@")]
+        })
+        items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
+        if not items:
+            return jsonify({"ok": False, "error": "No data returned"})
+        profile = items[0]
+        # Show all keys and sample of first post
+        first_post = profile.get("latestPosts", [{}])[0] if profile.get("latestPosts") else {}
+        return jsonify({
+            "ok": True,
+            "profile_keys": list(profile.keys()),
+            "followers": profile.get("followersCount"),
+            "posts_count": profile.get("postsCount"),
+            "latest_posts_count": len(profile.get("latestPosts", [])),
+            "first_post_keys": list(first_post.keys()) if first_post else [],
+            "first_post_sample": {
+                "likesCount": first_post.get("likesCount"),
+                "commentsCount": first_post.get("commentsCount"),
+                "videoViewCount": first_post.get("videoViewCount"),
+                "type": first_post.get("type"),
+                "caption": (first_post.get("caption") or "")[:200],
+                "displayUrl": first_post.get("displayUrl", "")[:100],
+                "videoUrl": first_post.get("videoUrl", "")[:100],
+                "images": first_post.get("images", [])[:2],
+                "timestamp": first_post.get("timestamp"),
+            }
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
 @app.route("/api/config", methods=["GET"])
 def api_get_config():
     return jsonify(load_config())
@@ -440,6 +480,169 @@ def api_report(report_id):
     if not path.exists():
         return jsonify({"error": "Não encontrado"}), 404
     return jsonify(json.loads(path.read_text(encoding="utf-8")))
+
+
+@app.route("/api/report/<report_id>/pdf")
+def export_pdf(report_id):
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, PageBreak, Table, TableStyle
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+    from io import BytesIO
+
+    path = REPORTS_DIR / f"{report_id}.json"
+    if not path.exists():
+        return jsonify({"error": "Não encontrado"}), 404
+
+    r = json.loads(path.read_text(encoding="utf-8"))
+    buf = BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=2*cm, rightMargin=2*cm,
+        topMargin=2*cm, bottomMargin=2*cm,
+        title=f"Relatório IG Intelligence — {r.get('run_date_br','')}",
+    )
+
+    # ── Styles ──
+    W = colors.HexColor("#f0f8f4")
+    BG = colors.HexColor("#060a08")
+    AMBER = colors.HexColor("#e8a020")
+    GREEN = colors.HexColor("#22c97a")
+    DARK = colors.HexColor("#0f1822")
+    MID = colors.HexColor("#7aaa94")
+    LIGHT = colors.HexColor("#d8ede6")
+
+    styles = getSampleStyleSheet()
+
+    s_cover_title = ParagraphStyle("cover_title",
+        fontName="Helvetica-Bold", fontSize=32, textColor=AMBER,
+        spaceAfter=8, alignment=TA_CENTER, leading=36)
+
+    s_cover_sub = ParagraphStyle("cover_sub",
+        fontName="Helvetica", fontSize=13, textColor=MID,
+        spaceAfter=6, alignment=TA_CENTER)
+
+    s_section = ParagraphStyle("section",
+        fontName="Helvetica-Bold", fontSize=15, textColor=AMBER,
+        spaceBefore=18, spaceAfter=8, leading=18)
+
+    s_profile_tag = ParagraphStyle("profile_tag",
+        fontName="Helvetica-Bold", fontSize=11, textColor=GREEN,
+        spaceBefore=14, spaceAfter=6)
+
+    s_body = ParagraphStyle("body",
+        fontName="Helvetica", fontSize=9.5, textColor=LIGHT,
+        spaceAfter=5, leading=14, backColor=DARK,
+        leftIndent=8, rightIndent=8)
+
+    s_meta = ParagraphStyle("meta",
+        fontName="Helvetica-Oblique", fontSize=9, textColor=MID,
+        spaceAfter=4)
+
+    def hr(): return HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#1e3028"), spaceAfter=10, spaceBefore=6)
+
+    def section(title): return [Paragraph(title, s_section), hr()]
+
+    def profile_block(a):
+        badge = "MEU PERFIL" if a["type"] == "own" else "CONCORRENTE"
+        nicho = a.get("detected_niche", "")
+        followers = f"{a.get('followers',0):,}".replace(",",".")
+        tag = f"[{badge}] @{a['username']}  ·  {followers} seguidores  ·  {nicho}"
+        items = [Paragraph(tag, s_profile_tag)]
+        # Split analysis into paragraphs
+        for line in (a.get("analysis") or "").split("
+"):
+            line = line.strip()
+            if not line: continue
+            safe = line.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+            items.append(Paragraph(safe, s_body))
+        items.append(Spacer(1, 8))
+        return items
+
+    story = []
+
+    # ── Cover page ──
+    story.append(Spacer(1, 3*cm))
+    story.append(Paragraph("IG INTELLIGENCE", s_cover_title))
+    story.append(Paragraph("Relatório de Inteligência Competitiva", s_cover_sub))
+    story.append(Spacer(1, 0.5*cm))
+    story.append(Paragraph(f"Gerado em {r.get('run_date_br','')}", s_cover_sub))
+    story.append(Paragraph(f"Perfil: @{r.get('config',{}).get('my_profile','')}   ·   Nicho: {r.get('my_niche','')}", s_cover_sub))
+    story.append(Spacer(1, 1*cm))
+
+    # Summary table
+    analyses = r.get("analyses", [])
+    own = next((a for a in analyses if a["type"]=="own"), None)
+    comps = [a for a in analyses if a["type"]=="competitor"]
+    tdata = [
+        ["Perfil", "Tipo", "Seguidores", "Nicho"],
+    ]
+    for a in analyses:
+        tdata.append([
+            f"@{a['username']}",
+            "Meu Perfil" if a["type"]=="own" else "Concorrente",
+            f"{a.get('followers',0):,}".replace(",","."),
+            (a.get("detected_niche") or "")[:40],
+        ])
+    t = Table(tdata, colWidths=[4*cm, 3*cm, 3*cm, 7*cm])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), AMBER),
+        ("TEXTCOLOR", (0,0), (-1,0), colors.black),
+        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+        ("FONTSIZE", (0,0), (-1,-1), 9),
+        ("BACKGROUND", (0,1), (-1,-1), DARK),
+        ("TEXTCOLOR", (0,1), (-1,-1), LIGHT),
+        ("ROWBACKGROUNDS", (0,1), (-1,-1), [DARK, colors.HexColor("#162420")]),
+        ("GRID", (0,0), (-1,-1), 0.4, colors.HexColor("#1e3028")),
+        ("TOPPADDING", (0,0), (-1,-1), 5),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+        ("LEFTPADDING", (0,0), (-1,-1), 6),
+    ]))
+    story.append(t)
+    story.append(PageBreak())
+
+    # ── Executive Summary ──
+    story += section("RELATÓRIO EXECUTIVO")
+    for line in (r.get("executive_summary") or "").split("
+"):
+        line = line.strip()
+        if not line: continue
+        safe = line.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+        story.append(Paragraph(safe, s_body))
+    story.append(PageBreak())
+
+    # ── My Profile ──
+    if own:
+        story += section("ANÁLISE DO MEU PERFIL")
+        story += profile_block(own)
+        story.append(PageBreak())
+
+    # ── Competitors ──
+    if comps:
+        story += section("ANÁLISE DOS CONCORRENTES")
+        for a in comps:
+            story += profile_block(a)
+            story.append(hr())
+        story.append(PageBreak())
+
+    # ── Content Plan ──
+    story += section("PLANO DE CONTEÚDO — 4 SEMANAS")
+    for line in (r.get("content_plan") or "").split("
+"):
+        line = line.strip()
+        if not line: continue
+        safe = line.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+        story.append(Paragraph(safe, s_body))
+
+    doc.build(story)
+    buf.seek(0)
+
+    from flask import send_file
+    filename = f"IG_Intelligence_{r.get('config',{}).get('my_profile','perfil')}_{report_id}.pdf"
+    return send_file(buf, mimetype="application/pdf",
+                     as_attachment=True, download_name=filename)
 
 def get_reports_list():
     reports = []
