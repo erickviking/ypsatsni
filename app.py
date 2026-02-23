@@ -54,12 +54,43 @@ def save_config(config):
 def scrape_profile(username, apify_token, max_posts=30):
     try:
         client = ApifyClient(apify_token)
-        run_input = {"usernames": [username.lstrip("@")], "resultsLimit": max_posts}
-        run = client.actor("apify/instagram-profile-scraper").call(run_input=run_input)
+        # Use snscrape/instagram-scraper which reliably returns posts
+        run_input = {
+            "usernames": [username.lstrip("@")],
+            "resultsLimit": max_posts,
+            "resultsType": "posts",
+            "scrapePostsUntilDate": "",
+            "proxy": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]},
+        }
+        run = client.actor("apify/instagram-scraper").call(run_input=run_input)
         items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
-        return items[0] if items else None
+        if not items:
+            return None
+        # instagram-scraper returns posts as items, build profile-like structure
+        first = items[0]
+        # If it looks like a profile object, return as-is
+        if "followersCount" in first or "biography" in first:
+            return first
+        # Otherwise build profile from post data
+        return {
+            "username": username,
+            "fullName": first.get("ownerFullName", username),
+            "biography": "",
+            "followersCount": first.get("followersCount", 0),
+            "followingCount": 0,
+            "postsCount": len(items),
+            "posts": items,
+        }
     except Exception as e:
-        raise Exception(f"Erro Apify para @{username}: {str(e)}")
+        # Fallback to profile scraper
+        try:
+            client2 = ApifyClient(apify_token)
+            run_input2 = {"usernames": [username.lstrip("@")], "resultsLimit": max_posts}
+            run2 = client2.actor("apify/instagram-profile-scraper").call(run_input=run_input2)
+            items2 = list(client2.dataset(run2["defaultDatasetId"]).iterate_items())
+            return items2[0] if items2 else None
+        except Exception as e2:
+            raise Exception(f"Erro Apify para @{username}: {str(e2)}")
 
 def detect_niche(profile_data, key):
     ai = anthropic.Anthropic(api_key=key)
@@ -352,6 +383,33 @@ def run_analysis_thread(config):
 @app.route("/")
 def index():
     return render_template("index.html", config=load_config(), reports=get_reports_list())
+
+@app.route("/api/test-anthropic")
+def test_anthropic():
+    key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not key:
+        return jsonify({"ok": False, "error": "ANTHROPIC_API_KEY not set"})
+    try:
+        import anthropic as ant
+        ai = ant.Anthropic(api_key=key)
+        msg = ai.messages.create(model="claude-opus-4-6", max_tokens=10,
+                                  messages=[{"role": "user", "content": "Say OK"}])
+        return jsonify({"ok": True, "response": msg.content[0].text})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+@app.route("/api/test-apify")
+def test_apify():
+    token = os.getenv("APIFY_TOKEN", "")
+    if not token:
+        return jsonify({"ok": False, "error": "APIFY_TOKEN not set"})
+    try:
+        from apify_client import ApifyClient
+        client = ApifyClient(token)
+        me = client.user("me").get()
+        return jsonify({"ok": True, "username": me.get("username"), "plan": me.get("plan", {}).get("id")})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
 
 @app.route("/api/config", methods=["GET"])
 def api_get_config():
