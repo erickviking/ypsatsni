@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AICM Radar SP — Instagram Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #05080b;
+  --s1: #0a1018;
+  --s2: #0f1822;
+  --s3: #162030;
+  --border: #1a2a3a;
+  --border2: #243548;
+  --accent: #00c8f0;
+  --accent2: #6d28d9;
+  --green: #10b981;
+  --warn: #f59e0b;
+  --red: #ef4444;
+  --text: #dde8f0;
+  --text2: #7a96b0;
+  --text3: #3a5268;
+  --glow-a: rgba(0,200,240,0.12);
+}
+body { font-family: 'Syne', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+body::before {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image: linear-gradient(rgba(0,200,240,0.025) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(0,200,240,0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+/* HEADER */
+header {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 32px; height: 60px;
+  background: rgba(5,8,11,0.92); backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-mark {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: grid; place-items: center; font-size: 16px;
+}
+.logo-name { font-size: 14px; font-weight: 800; letter-spacing: 0.04em; }
+.logo-tag { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--accent); letter-spacing: 0.2em; margin-top: 1px; }
+.hdr-right { display: flex; align-items: center; gap: 20px; }
+.pulse { display: flex; align-items: center; gap: 6px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text2); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* LAYOUT */
+.shell { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 60px); position: relative; z-index: 1; }
+
+/* SIDEBAR */
+aside {
+  border-right: 1px solid var(--border);
+  background: rgba(10,16,24,0.7);
+  display: flex; flex-direction: column; gap: 0;
+  overflow-y: auto;
+}
+.aside-block { padding: 20px; border-bottom: 1px solid var(--border); }
+.aside-label { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
+
+/* PROFILE CARD */
+.profile-badge {
+  background: var(--s2); border: 1px solid var(--border2); border-radius: 10px; padding: 14px;
+  position: relative; overflow: hidden;
+}
+.profile-badge.mine { border-color: rgba(0,200,240,.25); background: rgba(0,200,240,.04); }
+.profile-badge.mine::after {
+  content: 'VOCÊ'; position: absolute; top: 8px; right: 8px;
+  font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: .12em;
+  padding: 2px 6px; border-radius: 3px; background: rgba(0,200,240,.12); color: var(--accent);
+}
+.p-handle { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--text); }
+.p-handle span { color: var(--text3); }
+.p-meta { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+/* COMPETITOR LIST */
+.comp-item {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--s1); border: 1px solid var(--border); border-radius: 8px;
+  padding: 9px 12px; margin-bottom: 6px;
+}
+.comp-handle { font-family: 'DM Mono', monospace; font-size: 12px; }
+.rm-btn { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; border-radius: 3px; transition: all .15s; }
+.rm-btn:hover { color: var(--red); background: rgba(239,68,68,.1); }
+
+/* ADD FORM */
+.add-row { display: flex; gap: 6px; margin-top: 10px; }
+.field {
+  flex: 1; background: var(--s1); border: 1px solid var(--border); border-radius: 7px;
+  padding: 7px 10px; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text);
+  outline: none; transition: border-color .2s;
+}
+.field::placeholder { color: var(--text3); }
+.field:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--glow-a); }
+.btn-add { background: var(--accent); color: #000; border: none; border-radius: 7px; padding: 7px 12px; font-weight: 800; cursor: pointer; transition: all .2s; }
+.btn-add:hover { box-shadow: 0 0 16px rgba(0,200,240,.4); }
+
+/* LAST RUN */
+.run-info { font-size: 11px; color: var(--text2); line-height: 1.7; }
+.run-info strong { color: var(--text); }
+
+/* CONTENT */
+main { display: flex; flex-direction: column; overflow: hidden; }
+
+/* TABS */
+.tabs { display: flex; border-bottom: 1px solid var(--border); background: rgba(10,16,24,.5); padding: 0 28px; flex-shrink: 0; }
+.tab { padding: 15px 18px; font-size: 13px; font-weight: 600; color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; letter-spacing: .02em; white-space: nowrap; }
+.tab:hover { color: var(--text2); }
+.tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* PANELS */
+.panel { display: none; padding: 28px 32px; overflow-y: auto; flex: 1; }
+.panel.on { display: block; }
+
+/* STATS ROW */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 24px; }
+.stat { background: var(--s1); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+.stat-label { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+.stat-val { font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
+.stat-val.c-accent { color: var(--accent); }
+.stat-val.c-purple { color: #a78bfa; }
+.stat-val.c-green { color: var(--green); }
+.stat-sub { font-size: 11px; color: var(--text2); margin-top: 3px; }
+
+/* RUN CARD */
+.run-card {
+  background: var(--s1); border: 1px solid var(--border); border-radius: 14px;
+  padding: 22px 24px; display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 22px;
+}
+.run-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
+.run-card p { font-size: 12px; color: var(--text2); }
+.btn-run {
+  background: linear-gradient(135deg, var(--accent), #0088bb);
+  color: #000; border: none; border-radius: 10px; padding: 11px 26px;
+  font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 800;
+  cursor: pointer; transition: all .25s; display: flex; align-items: center; gap: 7px;
+  white-space: nowrap;
+}
+.btn-run:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(0,200,240,.3); }
+.btn-run:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* PROGRESS BAR */
+.progress-wrap { background: var(--s2); border: 1px solid var(--border); border-radius: 6px; height: 6px; overflow: hidden; margin-bottom: 14px; }
+.progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent), #00a8cc); transition: width .4s ease; border-radius: 6px; }
+
+/* TERMINAL */
+.terminal {
+  background: #020508; border: 1px solid var(--border); border-radius: 12px;
+  padding: 18px; font-family: 'DM Mono', monospace; font-size: 11.5px; line-height: 2;
+  min-height: 180px; max-height: 300px; overflow-y: auto; color: var(--text2);
+}
+.l { display: flex; gap: 10px; }
+.l-time { color: var(--text3); flex-shrink: 0; }
+.l.success .l-msg { color: var(--green); }
+.l.info .l-msg { color: var(--accent); }
+.l.warn .l-msg { color: var(--warn); }
+.l.error .l-msg { color: var(--red); }
+.l.dim .l-msg { color: var(--text3); }
+
+/* REPORT CARDS */
+.rpt-card { background: var(--s1); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px; overflow: hidden; transition: border-color .2s; }
+.rpt-card:hover { border-color: var(--border2); }
+.rpt-head { display: flex; align-items: center; justify-content: space-between; padding: 15px 18px; cursor: pointer; transition: background .15s; }
+.rpt-head:hover { background: rgba(255,255,255,.02); }
+.rpt-head.open { border-bottom: 1px solid var(--border); }
+.rpt-left { display: flex; align-items: center; gap: 10px; }
+.badge { font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: .14em; padding: 3px 7px; border-radius: 4px; text-transform: uppercase; }
+.b-own { background: rgba(0,200,240,.1); color: var(--accent); border: 1px solid rgba(0,200,240,.2); }
+.b-comp { background: rgba(109,40,217,.1); color: #a78bfa; border: 1px solid rgba(109,40,217,.2); }
+.b-plan { background: rgba(16,185,129,.1); color: var(--green); border: 1px solid rgba(16,185,129,.2); }
+.b-exec { background: rgba(245,158,11,.1); color: var(--warn); border: 1px solid rgba(245,158,11,.2); }
+.rpt-handle { font-family: 'DM Mono', monospace; font-size: 13px; }
+.rpt-meta { font-size: 11px; color: var(--text2); }
+.chevron { color: var(--text3); transition: transform .2s; font-size: 13px; font-style: normal; }
+.chevron.open { transform: rotate(90deg); }
+.rpt-body { display: none; padding: 22px; background: rgba(0,0,0,.25); }
+.rpt-body.open { display: block; }
+.rpt-text { font-family: 'DM Mono', monospace; font-size: 12px; line-height: 1.9; color: var(--text2); white-space: pre-wrap; }
+.rpt-text h3, .rpt-text strong { color: var(--text); }
+
+/* CONFIG FORM */
+.cfg-wrap { max-width: 520px; }
+.cfg-card { background: var(--s1); border: 1px solid var(--border); border-radius: 14px; padding: 26px; margin-bottom: 18px; }
+.cfg-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 18px; }
+.fg { margin-bottom: 16px; }
+.fg label { display: block; font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); margin-bottom: 7px; }
+.fg input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text); outline: none; transition: border-color .2s; }
+.fg input::placeholder { color: var(--text3); }
+.fg input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--glow-a); }
+.fg small { font-size: 10px; color: var(--text3); margin-top: 4px; display: block; }
+.btn-save { width: 100%; padding: 11px; background: var(--accent); color: #000; border: none; border-radius: 9px; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 800; cursor: pointer; transition: all .2s; margin-top: 4px; }
+.btn-save:hover { box-shadow: 0 0 20px rgba(0,200,240,.35); }
+.saved-msg { display: none; background: rgba(16,185,129,.1); border: 1px solid rgba(16,185,129,.2); color: var(--green); border-radius: 8px; padding: 9px 12px; font-size: 11px; font-family: 'DM Mono', monospace; margin-top: 12px; }
+
+/* HISTORY LIST */
+.hist-item {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--s1); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 18px; margin-bottom: 10px; cursor: pointer; transition: all .2s;
+}
+.hist-item:hover { border-color: var(--border2); background: var(--s2); }
+.hist-date { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text); }
+.hist-meta { font-size: 11px; color: var(--text2); margin-top: 3px; }
+.hist-arrow { color: var(--text3); font-size: 16px; }
+
+/* EMPTY STATE */
+.empty { text-align: center; padding: 60px 20px; color: var(--text3); }
+.empty .ico { font-size: 44px; margin-bottom: 14px; opacity: .5; }
+.empty h3 { font-size: 15px; color: var(--text2); margin-bottom: 6px; }
+.empty p { font-size: 12px; max-width: 320px; margin: 0 auto; line-height: 1.7; }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* SECTION TITLE */
+.sec-title { font-size: 20px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 22px; }
+.sec-title span { background: linear-gradient(135deg, var(--accent), #00a8cc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+/* FADE IN */
+@keyframes fi { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+.fi { animation: fi .3s ease forwards; }
+
+/* REPORT VIEW MODAL */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.8); z-index: 200; backdrop-filter: blur(4px); }
+.modal-overlay.open { display: flex; align-items: flex-start; justify-content: center; padding: 40px 20px; overflow-y: auto; }
+.modal {
+  background: var(--s1); border: 1px solid var(--border2); border-radius: 16px;
+  width: 100%; max-width: 820px; padding: 0; overflow: hidden;
+  animation: fi .25s ease;
+}
+.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--border); }
+.modal-header h2 { font-size: 16px; font-weight: 700; }
+.modal-close { background: none; border: none; color: var(--text2); font-size: 22px; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+.modal-close:hover { background: var(--s3); color: var(--text); }
+.modal-body { padding: 24px; max-height: 75vh; overflow-y: auto; }
+.modal-section { margin-bottom: 28px; }
+.modal-section h3 { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.modal-text { font-family: 'DM Mono', monospace; font-size: 12px; line-height: 1.9; color: var(--text2); white-space: pre-wrap; }
+.profile-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.ptab { font-family: 'DM Mono', monospace; font-size: 10px; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text2); cursor: pointer; transition: all .15s; }
+.ptab:hover { border-color: var(--accent); color: var(--accent); }
+.ptab.on { background: rgba(0,200,240,.1); border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">📡</div>
+    <div>
+      <div class="logo-name">Instagram Intelligence</div>
+      <div class="logo-tag">AICM · RADAR SP · v2.0</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <div class="pulse"><div class="dot"></div><span id="hdrStatus">Pronto</span></div>
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- SIDEBAR -->
+  <aside>
+    <div class="aside-block">
+      <div class="aside-label">Meu Perfil</div>
+      <div id="myProfileCard">
+        <div style="font-size:12px;color:var(--text3);">Nenhum perfil configurado.<br>Vá em Configurações.</div>
+      </div>
+    </div>
+
+    <div class="aside-block">
+      <div class="aside-label">Concorrentes (<span id="compCount">0</span>)</div>
+      <div id="compList"></div>
+      <div class="add-row">
+        <input class="field" id="addInp" placeholder="@username" type="text">
+        <button class="btn-add" onclick="addComp()">+</button>
+      </div>
+    </div>
+
+    <div class="aside-block" style="flex:1;">
+      <div class="aside-label">Última Análise</div>
+      <div class="run-info" id="lastRunSidebar">Nenhuma análise realizada.</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main>
+    <div class="tabs">
+      <div class="tab on" onclick="tab('dashboard',this)">Dashboard</div>
+      <div class="tab" onclick="tab('reports',this)">Relatórios</div>
+      <div class="tab" onclick="tab('history',this)">Histórico</div>
+      <div class="tab" onclick="tab('config',this)">Configurações</div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="panel on" id="p-dashboard">
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label">Perfis Monitorados</div>
+          <div class="stat-val c-accent" id="stTotal">0</div>
+          <div class="stat-sub">meu + concorrentes</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Concorrentes</div>
+          <div class="stat-val c-purple" id="stComps">0</div>
+          <div class="stat-sub">perfis configurados</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Status</div>
+          <div class="stat-val c-green" id="stStatus" style="font-size:16px;margin-top:4px;">Pronto</div>
+          <div class="stat-sub" id="stSub">aguardando execução</div>
+        </div>
+      </div>
+
+      <div class="run-card">
+        <div>
+          <h3>Executar Análise Completa</h3>
+          <p>Coleta dados de todos os perfis, analisa com IA e gera relatórios estratégicos</p>
+        </div>
+        <button class="btn-run" id="runBtn" onclick="runAgent()">
+          <span>▶</span> Iniciar Análise
+        </button>
+      </div>
+
+      <div id="progressWrap" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);" id="progLabel">Iniciando...</span>
+          <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);" id="progPct">0%</span>
+        </div>
+        <div class="progress-wrap"><div class="progress-bar" id="progBar" style="width:0%"></div></div>
+      </div>
+
+      <div class="terminal" id="terminal">
+        <div class="l dim"><span class="l-time">--:--:--</span><span class="l-msg">// Configure os perfis e clique em Iniciar Análise</span></div>
+      </div>
+    </div>
+
+    <!-- REPORTS (latest run) -->
+    <div class="panel" id="p-reports">
+      <div class="sec-title">Último <span>Relatório</span></div>
+      <div id="reportsContainer">
+        <div class="empty"><div class="ico">📊</div><h3>Nenhum relatório ainda</h3><p>Execute uma análise no Dashboard para gerar relatórios.</p></div>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="panel" id="p-history">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;">
+        <div class="sec-title" style="margin-bottom:0;">Histórico de <span>Análises</span></div>
+        <button onclick="loadHistory()" style="background:transparent;border:1px solid var(--border2);color:var(--text2);padding:7px 14px;border-radius:8px;font-size:12px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;">↻ Atualizar</button>
+      </div>
+      <div id="histContainer">
+        <div class="empty"><div class="ico">🗂️</div><h3>Nenhum histórico</h3><p>As análises anteriores aparecem aqui.</p></div>
+      </div>
+    </div>
+
+    <!-- CONFIG -->
+    <div class="panel" id="p-config">
+      <div class="sec-title">Configurações <span>do Agente</span></div>
+      <div class="cfg-wrap">
+        <div class="cfg-card">
+          <h3>Seu Perfil</h3>
+          <div class="fg">
+            <label>Meu Username no Instagram</label>
+            <input id="cfgProfile" placeholder="dnadomentor" type="text">
+            <small>Sem o @</small>
+          </div>
+          <div class="fg">
+            <label>Especialidade Médica</label>
+            <input id="cfgSpec" placeholder="Ex: Medicina do Esporte, Cardiologista..." type="text">
+          </div>
+          <div class="fg">
+            <label>Cidade</label>
+            <input id="cfgCity" placeholder="São Paulo" type="text">
+          </div>
+        </div>
+
+        <div class="cfg-card">
+          <h3>Credenciais das APIs</h3>
+          <div class="fg">
+            <label>Apify Token</label>
+            <input id="cfgApify" placeholder="apify_api_xxxx..." type="password">
+            <small>Obtenha em apify.com → Settings → Integrations</small>
+          </div>
+          <div class="fg">
+            <label>Anthropic API Key</label>
+            <input id="cfgAnthropic" placeholder="sk-ant-xxxx..." type="password">
+            <small>Obtenha em console.anthropic.com</small>
+          </div>
+        </div>
+
+        <button class="btn-save" onclick="saveConfig()">Salvar Configurações</button>
+        <div class="saved-msg" id="savedMsg">✅ Configurações salvas com sucesso!</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL (full report view) -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2 id="modalTitle">Relatório</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let cfg = { my_profile:'', specialty:'', location:'São Paulo', competitors:[], apify_token:'', anthropic_key:'' };
+let polling = null;
+let latestReport = null;
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+async function init() {
+  const res = await fetch('/api/config');
+  cfg = await res.json();
+  renderSidebar();
+  populateConfig();
+  await loadLatestReport();
+  checkRunning();
+}
+
+// ─── SIDEBAR ──────────────────────────────────────────────────────────────────
+function renderSidebar() {
+  // My profile
+  const el = document.getElementById('myProfileCard');
+  el.innerHTML = cfg.my_profile
+    ? `<div class="profile-badge mine"><div class="p-handle"><span>@</span>${cfg.my_profile}</div><div class="p-meta">${cfg.specialty||'Médico'} · ${cfg.location||'SP'}</div></div>`
+    : `<div style="font-size:12px;color:var(--text3);">Nenhum perfil configurado.<br>Vá em Configurações.</div>`;
+
+  // Competitors
+  const list = document.getElementById('compList');
+  document.getElementById('compCount').textContent = cfg.competitors.length;
+  if (!cfg.competitors.length) {
+    list.innerHTML = `<div style="font-size:12px;color:var(--text3);margin-bottom:10px;">Nenhum concorrente adicionado.</div>`;
+  } else {
+    list.innerHTML = cfg.competitors.map((c,i) => `
+      <div class="comp-item">
+        <span class="comp-handle">@${c}</span>
+        <button class="rm-btn" onclick="removeComp(${i})">×</button>
+      </div>`).join('');
+  }
+
+  // Stats
+  const total = (cfg.my_profile ? 1 : 0) + cfg.competitors.length;
+  document.getElementById('stTotal').textContent = total;
+  document.getElementById('stComps').textContent = cfg.competitors.length;
+}
+
+async function addComp() {
+  const inp = document.getElementById('addInp');
+  const val = inp.value.trim().replace('@','');
+  if (!val || cfg.competitors.includes(val)) { inp.value=''; return; }
+  cfg.competitors.push(val);
+  inp.value = '';
+  await saveToServer();
+  renderSidebar();
+}
+
+async function removeComp(i) {
+  cfg.competitors.splice(i,1);
+  await saveToServer();
+  renderSidebar();
+}
+
+document.getElementById('addInp').addEventListener('keydown', e => { if(e.key==='Enter') addComp(); });
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+function tab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById(`p-${name}`).classList.add('on');
+  if (name === 'history') loadHistory();
+  if (name === 'reports') renderLatestReport();
+}
+
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+function populateConfig() {
+  document.getElementById('cfgProfile').value = cfg.my_profile || '';
+  document.getElementById('cfgSpec').value = cfg.specialty || '';
+  document.getElementById('cfgCity').value = cfg.location || '';
+  document.getElementById('cfgApify').value = cfg.apify_token || '';
+  document.getElementById('cfgAnthropic').value = cfg.anthropic_key || '';
+}
+
+async function saveConfig() {
+  cfg.my_profile = document.getElementById('cfgProfile').value.trim().replace('@','');
+  cfg.specialty = document.getElementById('cfgSpec').value.trim();
+  cfg.location = document.getElementById('cfgCity').value.trim() || 'São Paulo';
+  cfg.apify_token = document.getElementById('cfgApify').value.trim();
+  cfg.anthropic_key = document.getElementById('cfgAnthropic').value.trim();
+  await saveToServer();
+  renderSidebar();
+  const msg = document.getElementById('savedMsg');
+  msg.style.display = 'block';
+  setTimeout(() => msg.style.display='none', 3000);
+}
+
+async function saveToServer() {
+  await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg) });
+}
+
+// ─── TERMINAL ─────────────────────────────────────────────────────────────────
+function addLog(log) {
+  const t = document.getElementById('terminal');
+  const d = document.createElement('div');
+  d.className = `l ${log.level}`;
+  d.innerHTML = `<span class="l-time">${log.time}</span><span class="l-msg">${log.msg}</span>`;
+  t.appendChild(d);
+  t.scrollTop = t.scrollHeight;
+}
+
+function clearTerminal() {
+  document.getElementById('terminal').innerHTML = '';
+}
+
+// ─── RUN AGENT ────────────────────────────────────────────────────────────────
+async function runAgent() {
+  if (!cfg.my_profile) { alert('Configure seu perfil em Configurações primeiro!'); return; }
+  if (!cfg.apify_token || !cfg.anthropic_key) { alert('Configure as credenciais da API em Configurações!'); return; }
+
+  const res = await fetch('/api/run', {method:'POST'});
+  const data = await res.json();
+  if (!data.ok) { alert(data.error); return; }
+
+  clearTerminal();
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('runBtn').innerHTML = '<span>⏳</span> Analisando...';
+  document.getElementById('progressWrap').style.display = 'block';
+  document.getElementById('stStatus').textContent = 'Rodando';
+  document.getElementById('stStatus').style.color = 'var(--warn)';
+  document.getElementById('stSub').textContent = 'análise em andamento';
+  document.getElementById('hdrStatus').textContent = 'Rodando análise...';
+
+  startPolling();
+}
+
+let lastLogCount = 0;
+
+function startPolling() {
+  if (polling) clearInterval(polling);
+  lastLogCount = 0;
+  polling = setInterval(async () => {
+    const res = await fetch('/api/status');
+    const s = await res.json();
+
+    // Append new logs
+    const newLogs = s.logs.slice(lastLogCount);
+    newLogs.forEach(addLog);
+    lastLogCount = s.logs.length;
+
+    // Progress
+    if (s.total > 0) {
+      const pct = Math.round((s.progress / s.total) * 100);
+      document.getElementById('progBar').style.width = pct + '%';
+      document.getElementById('progPct').textContent = pct + '%';
+      document.getElementById('progLabel').textContent = s.current_profile ? `Analisando @${s.current_profile}...` : 'Processando...';
+    }
+
+    if (s.finished || !s.running) {
+      clearInterval(polling);
+      polling = null;
+
+      document.getElementById('runBtn').disabled = false;
+      document.getElementById('runBtn').innerHTML = '<span>▶</span> Iniciar Análise';
+      document.getElementById('progressWrap').style.display = 'none';
+      document.getElementById('hdrStatus').textContent = 'Pronto';
+
+      if (s.error) {
+        document.getElementById('stStatus').textContent = 'Erro';
+        document.getElementById('stStatus').style.color = 'var(--red)';
+        document.getElementById('stSub').textContent = s.error;
+      } else {
+        document.getElementById('stStatus').textContent = 'Concluído';
+        document.getElementById('stStatus').style.color = 'var(--green)';
+        document.getElementById('stSub').textContent = 'análise finalizada';
+        if (s.last_run) {
+          document.getElementById('lastRunSidebar').innerHTML = `<strong>Última:</strong> ${s.last_run}<br><a href="#" onclick="tab('reports',document.querySelectorAll('.tab')[1]);return false;" style="color:var(--accent);font-size:11px;">Ver relatório →</a>`;
+          await loadLatestReport();
+        }
+      }
+    }
+  }, 1500);
+}
+
+function checkRunning() {
+  fetch('/api/status').then(r=>r.json()).then(s => {
+    if (s.running) {
+      document.getElementById('runBtn').disabled = true;
+      document.getElementById('runBtn').innerHTML = '<span>⏳</span> Analisando...';
+      document.getElementById('progressWrap').style.display = 'block';
+      startPolling();
+    }
+  });
+}
+
+// ─── LATEST REPORT ────────────────────────────────────────────────────────────
+async function loadLatestReport() {
+  const res = await fetch('/api/reports');
+  const reports = await res.json();
+  if (!reports.length) return;
+  const r = await fetch(`/api/report/${reports[0].id}`);
+  latestReport = await r.json();
+  renderLatestReport();
+
+  // Update last run sidebar
+  document.getElementById('lastRunSidebar').innerHTML =
+    `<strong>${latestReport.run_date_br}</strong><br>${latestReport.profiles_analyzed} perfis analisados<br>
+    <a href="#" onclick="tab('reports',document.querySelectorAll('.tab')[1]);return false;" style="color:var(--accent);font-size:11px;">Ver relatório →</a>`;
+}
+
+function renderLatestReport() {
+  const container = document.getElementById('reportsContainer');
+  if (!latestReport) {
+    container.innerHTML = `<div class="empty"><div class="ico">📊</div><h3>Nenhum relatório ainda</h3><p>Execute uma análise no Dashboard.</p></div>`;
+    return;
+  }
+
+  const r = latestReport;
+  let html = `<div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);margin-bottom:20px;">
+    Análise de <strong style="color:var(--text)">${r.run_date_br}</strong> · ${r.profiles_analyzed} perfis analisados
+  </div>`;
+
+  // Executive summary
+  html += reportCard('exec', '📋', 'b-exec', 'EXECUTIVO', 'Relatório Executivo', '', r.executive_summary);
+
+  // Own profile
+  const own = r.analyses.find(a => a.type === 'own');
+  if (own) html += reportCard(`own_${own.username}`, '👤', 'b-own', 'MEU PERFIL', `@${own.username}`, `${own.followers.toLocaleString()} seguidores`, own.analysis);
+
+  // Competitors
+  r.analyses.filter(a => a.type === 'competitor').forEach(a => {
+    html += reportCard(`comp_${a.username}`, '🔍', 'b-comp', 'CONCORRENTE', `@${a.username}`, `${a.followers.toLocaleString()} seguidores`, a.analysis);
+  });
+
+  // Content plan
+  html += reportCard('plan', '💡', 'b-plan', 'CONTEÚDO', 'Plano de Conteúdo — 4 Semanas', '', r.content_plan);
+
+  container.innerHTML = html;
+}
+
+function reportCard(id, icon, badgeClass, badgeText, title, meta, content) {
+  return `<div class="rpt-card fi">
+    <div class="rpt-head" id="h_${id}" onclick="toggleRpt('${id}')">
+      <div class="rpt-left">
+        <span class="badge ${badgeClass}">${badgeText}</span>
+        <span class="rpt-handle">${title}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        ${meta ? `<span class="rpt-meta">${meta}</span>` : ''}
+        <i class="chevron" id="c_${id}">›</i>
+      </div>
+    </div>
+    <div class="rpt-body" id="b_${id}">
+      <div class="rpt-text">${escapeHtml(content)}</div>
+    </div>
+  </div>`;
+}
+
+function toggleRpt(id) {
+  const body = document.getElementById(`b_${id}`);
+  const chev = document.getElementById(`c_${id}`);
+  const head = document.getElementById(`h_${id}`);
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  chev.classList.toggle('open', !isOpen);
+  head.classList.toggle('open', !isOpen);
+}
+
+function escapeHtml(str) {
+  return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── HISTORY ──────────────────────────────────────────────────────────────────
+async function loadHistory() {
+  const res = await fetch('/api/reports');
+  const reports = await res.json();
+  const container = document.getElementById('histContainer');
+
+  if (!reports.length) {
+    container.innerHTML = `<div class="empty"><div class="ico">🗂️</div><h3>Nenhum histórico</h3><p>As análises anteriores aparecem aqui.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = reports.map(r => `
+    <div class="hist-item fi" onclick="openReportModal('${r.id}')">
+      <div>
+        <div class="hist-date">📅 ${r.run_date_br}</div>
+        <div class="hist-meta">@${r.my_profile} · ${r.profiles_analyzed} perfis · ${r.competitors.length} concorrentes</div>
+      </div>
+      <span class="hist-arrow">›</span>
+    </div>`).join('');
+}
+
+async function openReportModal(id) {
+  const res = await fetch(`/api/report/${id}`);
+  const r = await res.json();
+
+  document.getElementById('modalTitle').textContent = `Relatório — ${r.run_date_br}`;
+
+  let html = '';
+
+  // Profile tabs
+  const allProfiles = r.analyses;
+  html += `<div class="profile-tabs" id="ptabs">`;
+  html += `<button class="ptab on" onclick="showSection('exec',this)">📋 Executivo</button>`;
+  allProfiles.forEach(a => {
+    html += `<button class="ptab" onclick="showSection('${a.username}',this)">${a.type==='own'?'👤':'🔍'} @${a.username}</button>`;
+  });
+  html += `<button class="ptab" onclick="showSection('plan',this)">💡 Plano de Conteúdo</button>`;
+  html += `</div>`;
+
+  // Sections
+  html += `<div id="sec_exec" class="modal-section">
+    <h3>Relatório Executivo</h3>
+    <div class="modal-text">${escapeHtml(r.executive_summary)}</div>
+  </div>`;
+
+  allProfiles.forEach(a => {
+    html += `<div id="sec_${a.username}" class="modal-section" style="display:none;">
+      <h3>${a.type==='own'?'Meu Perfil':'Concorrente'}: @${a.username} · ${a.followers.toLocaleString()} seguidores</h3>
+      <div class="modal-text">${escapeHtml(a.analysis)}</div>
+    </div>`;
+  });
+
+  html += `<div id="sec_plan" class="modal-section" style="display:none;">
+    <h3>Plano de Conteúdo — 4 Semanas</h3>
+    <div class="modal-text">${escapeHtml(r.content_plan)}</div>
+  </div>`;
+
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function showSection(id, btn) {
+  document.querySelectorAll('#modalBody .modal-section').forEach(s => s.style.display='none');
+  document.querySelectorAll('.ptab').forEach(b => b.classList.remove('on'));
+  document.getElementById(`sec_${id}`).style.display = 'block';
+  btn.classList.add('on');
+}
+
+function closeModal(e) {
+  if (!e || e.target === document.getElementById('modalOverlay')) {
+    document.getElementById('modalOverlay').classList.remove('open');
+  }
+}
+
+// ─── START ────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
